@@ -1719,11 +1719,10 @@ float DotUnitVectors(const float[] vec1, const float[] vec2, int size=3)
 
 bool CompareVectors(const float[] vec1, const float[] vec2, int size=3, float error=EPSILON)
 {
-	bool equal = true;
 	for (int i = 0; i < size; i++)
 		if (FloatAbs(vec1[i] - vec2[i]) >= error)
-			equal = false;
-	return equal;
+			return false;
+	return true;
 }
 
 //bool CompareUnitVectors(const float[] vec1, const float[] vec2, int size=3, float error=EPSILON)
