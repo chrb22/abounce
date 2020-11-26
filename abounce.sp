@@ -489,9 +489,9 @@ int CompareBounces(int index1, int index2, Handle array, Handle datapack)
 	else if (bounce1.start > bounce2.start)
 		return 1;
 
-	if (view_as<int>(bounce1.launcher.charged) < view_as<int>(bounce2.launcher.launcher))
+	if (bounce1.launcher.charged < bounce2.launcher.charged)
 		return -1;
-	else if (view_as<int>(bounce1.launcher.charged) > view_as<int>(bounce2.launcher.launcher))
+	else if (bounce1.launcher.charged > bounce2.launcher.charged)
 		return 1;
 
 	return 0;
