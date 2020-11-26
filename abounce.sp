@@ -323,7 +323,7 @@ public Action Timer_Live(Handle timer)
 		int ducked = (GetEntProp(client, Prop_Data, "m_fFlags") & FL_DUCKING) > 0;
 		float landtick = GetLandTickFromStartZVel(TICK_INTERVAL, GRAVITY, MAXVEL, pos[2] - ducked*HULL_HEIGHT_DIFF + Pow(2.0,15.0), vel[2]); // Add max world length to avoid negative numbers
 
-		float diff = FloatMin(landtick, g_sessions[client].landtick) - FloatMax(landtick, g_sessions[client].landtick);
+		float diff = landtick - g_sessions[client].landtick;
 		bool changed = EPSILON <= FloatFraction(diff) < 1 - EPSILON;
 
 		bool statechange = (g_sessions[client].grounded) ^ (ground >= 0);
