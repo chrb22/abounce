@@ -590,7 +590,7 @@ void UpdateBounces(int client)
 void BounceString(Session session, Bounce bounce, char[] buffer, int size)
 {
 	if (bounce.start <= BOUNCE_START_CEILING) {
-		Format(buffer, size, "%s", TEXT_BOUNCE_START[bounce.start]);
+		strcopy(buffer, size, TEXT_BOUNCE_START[bounce.start]);
 	}
 	else {
 		int li = bounce.launcher.charged ? bounce.launcher.launcher + 1 : bounce.launcher.launcher;
@@ -600,19 +600,19 @@ void BounceString(Session session, Bounce bounce, char[] buffer, int size)
 			// Best place to calculate angled bounces sadly
 			float pitch[2];
 			GetPitchInterval(session, bounce, pitch);
-			Format(buffer, size, "(%s) %.2f°-%.2f°", TEXT_LAUNCHER[bounce.launcher.launcher], float(RoundToCeil(RadToDeg(pitch[0])*100))/100 + 0.005, float(RoundToFloor(RadToDeg(pitch[1])*100))/100 + 0.005);
+			FormatEx(buffer, size, "(%s) %.2f°-%.2f°", TEXT_LAUNCHER[bounce.launcher.launcher], float(RoundToCeil(RadToDeg(pitch[0])*100))/100 + 0.005, float(RoundToFloor(RadToDeg(pitch[1])*100))/100 + 0.005);
 		}
 		else if (f == 0 && r == 0) {
 			if (bounce.start == BOUNCE_START_ANGLE_STANDING)
-				Format(buffer, size, "(%s) Stand", TEXT_LAUNCHER[li]);
+				FormatEx(buffer, size, "(%s) Stand", TEXT_LAUNCHER[li]);
 			else if (bounce.start == BOUNCE_START_ANGLE_DUCKING)
-				Format(buffer, size, "(%s) Crouch", TEXT_LAUNCHER[li]);
+				FormatEx(buffer, size, "(%s) Crouch", TEXT_LAUNCHER[li]);
 		}
 		else {
 			if (bounce.launcher.launcher == LAUNCHER_ORIGINAL && bounce.input[1] != 0)
-				Format(buffer, size, "(%s) %s%s/%s", TEXT_LAUNCHER[li], TEXT_BOUNCE_START[bounce.start], TEXT_BOUNCE_INPUT[f+1][0], TEXT_BOUNCE_INPUT[1][2]);
+				FormatEx(buffer, size, "(%s) %s%s/%s", TEXT_LAUNCHER[li], TEXT_BOUNCE_START[bounce.start], TEXT_BOUNCE_INPUT[f+1][0], TEXT_BOUNCE_INPUT[1][2]);
 			else
-				Format(buffer, size, "(%s) %s%s", TEXT_LAUNCHER[li], TEXT_BOUNCE_START[bounce.start], TEXT_BOUNCE_INPUT[f+1][r+1]);
+				FormatEx(buffer, size, "(%s) %s%s", TEXT_LAUNCHER[li], TEXT_BOUNCE_START[bounce.start], TEXT_BOUNCE_INPUT[f+1][r+1]);
 		}
 	}
 }
@@ -634,7 +634,7 @@ void DrawBounceType(int client, Panel panel, int type)
 
 	panel.CurrentKey = 3 + type;
 
-	Format(line, sizeof(line), "%s", TEXT_BOUNCE_TYPE[type]);
+	strcopy(line, sizeof(line), TEXT_BOUNCE_TYPE[type]);
 	if (empty || g_sessions[client].floor.edict <= ENTITY_NONE && g_sessions[client].ceiling.edict <= ENTITY_NONE) {
 		panel.DrawItem(line, ITEMDRAW_DISABLED);
 
@@ -703,12 +703,12 @@ void ShowMenu(int client)
 	bool steep = g_sessions[client].ground.normal[2] < GROUND_NORMAL_MIN;
 	if (g_sessions[client].ground.edict > ENTITY_NONE) {
 		if (!steep)
-			Format(line, sizeof(line), "Ground slope: %d°", RoundToNearest(groundangle));
+			FormatEx(line, sizeof(line), "Ground slope: %d°", RoundToNearest(groundangle));
 		else
-			Format(line, sizeof(line), "Ground slope: %d° (too steep)", RoundToNearest(groundangle));
+			FormatEx(line, sizeof(line), "Ground slope: %d° (too steep)", RoundToNearest(groundangle));
 	}
 	else
-		Format(line, sizeof(line), "No ground selected");
+		FormatEx(line, sizeof(line), "No ground selected");
 
 	panel.DrawText(line);
 
@@ -716,47 +716,47 @@ void ShowMenu(int client)
 	FloatString(triggerheight, snum, sizeof(snum));
 	if (g_sessions[client].trigger.edict > ENTITY_NONE) {
 		if (CompareVectors(g_sessions[client].ground.normal, g_sessions[client].trigger.normal))
-			Format(addl, sizeof(addl), "");
+			FormatEx(addl, sizeof(addl), "");
 		else if (IsWallValid(g_sessions[client]))
-			Format(addl, sizeof(addl), " (wall)");
+			FormatEx(addl, sizeof(addl), " (wall)");
 		else
-			Format(addl, sizeof(addl), " (point)");
+			FormatEx(addl, sizeof(addl), " (point)");
 
 		if (FloatIsNaN(triggerheight))
-			Format(line, sizeof(line), "Teleport height: Undefined");
+			FormatEx(line, sizeof(line), "Teleport height: Undefined");
 		if (triggerheight <= GROUND_LAND_INTERVAL + EPSILON)
-			Format(line, sizeof(line), "Teleport height: %s%s", snum, addl);
+			FormatEx(line, sizeof(line), "Teleport height: %s%s", snum, addl);
 		else if (triggerheight <= GROUND_LAND_INTERVAL + BOUNCE_START[BOUNCE_START_JUMP][1]*TICK_INTERVAL + EPSILON)
-			Format(line, sizeof(line), "Teleport height: %s%s (jumpbug only)", snum, addl);
+			FormatEx(line, sizeof(line), "Teleport height: %s%s (jumpbug only)", snum, addl);
 		else
-			Format(line, sizeof(line), "Teleport height: %s%s (impossible)", snum, addl);
+			FormatEx(line, sizeof(line), "Teleport height: %s%s (impossible)", snum, addl);
 	}
 	else if (g_sessions[client].trigger.edict == ENTITY_INVALID) {
-		Format(line, sizeof(line), "Bad teleport orientation");
+		FormatEx(line, sizeof(line), "Bad teleport orientation");
 	}
 	else {
-		Format(line, sizeof(line), "No teleport found");
+		FormatEx(line, sizeof(line), "No teleport found");
 	}
 
 	panel.DrawText(line);
 
 	if (CompareVectors(g_sessions[client].ground.normal, {0.0, 0.0, 1.0}))
-		Format(addl, sizeof(addl), "");
+		FormatEx(addl, sizeof(addl), "");
 	else if (IsWallValid(g_sessions[client]))
-		Format(addl, sizeof(addl), " (wall)");
+		FormatEx(addl, sizeof(addl), " (wall)");
 	else
-		Format(addl, sizeof(addl), " (point)");
+		FormatEx(addl, sizeof(addl), " (point)");
 
 	float floorheight = g_sessions[client].floor.dist - GetGroundZ(g_sessions[client]);
 	FloatString(floorheight, snum, sizeof(snum));
 	if (g_sessions[client].floor.edict > ENTITY_NONE) {
 		if (FloatIsNaN(floorheight))
-			Format(line, sizeof(line), "Floor height: Undefined");
+			FormatEx(line, sizeof(line), "Floor height: Undefined");
 		else
-			Format(line, sizeof(line), "Floor height: %s%s", snum, addl);
+			FormatEx(line, sizeof(line), "Floor height: %s%s", snum, addl);
 	}
 	else {
-		Format(line, sizeof(line), "No floor selected");
+		FormatEx(line, sizeof(line), "No floor selected");
 	}
 
 	panel.DrawText(line);
@@ -765,11 +765,11 @@ void ShowMenu(int client)
 	FloatString(ceilingheight, snum, sizeof(snum));
 	if (g_sessions[client].ceiling.edict > ENTITY_NONE)
 		if (FloatIsNaN(ceilingheight))
-			Format(line, sizeof(line), "Ceiling height: Undefined");
+			FormatEx(line, sizeof(line), "Ceiling height: Undefined");
 		else
-			Format(line, sizeof(line), "Ceiling height: %s%s", snum, addl);
+			FormatEx(line, sizeof(line), "Ceiling height: %s%s", snum, addl);
 	else
-		Format(line, sizeof(line), "No ceiling selected");
+		FormatEx(line, sizeof(line), "No ceiling selected");
 
 	panel.DrawText(line);
 
@@ -1666,9 +1666,9 @@ float P4(float f) { return f*f*f*f; }
 void FloatString(float f, char[] buffer, int size)
 {
 	if (f - 0.005 < RoundToFloor(f) || f + 0.005 > RoundToCeil(f))
-		Format(buffer, size, "%d", RoundToNearest(f));
+		FormatEx(buffer, size, "%d", RoundToNearest(f));
 	else {
-		Format(buffer, size, "%.2f", float(RoundToNearest(f*100.0))/100.0 + 0.005);
+		FormatEx(buffer, size, "%.2f", float(RoundToNearest(f*100.0))/100.0 + 0.005);
 	}
 }
 
