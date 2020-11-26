@@ -548,7 +548,7 @@ void UpdateBounces(int client)
 			int cm = view_as<int>(l == LAUNCHER_MANGLER);
 
 			for (int c = 0; c <= cm; c++) {
-				bounce.launcher.charged = view_as<bool>(c);
+				bounce.launcher.charged = !!c; // Convert c to bool
 
 				for (int start = BOUNCE_START_ANGLE_STANDING; start < BOUNCE_START_COUNT; start++) {
 					bounce.start = start;
