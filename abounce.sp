@@ -107,6 +107,7 @@ enum
 
 enum
 {
+	BOUNCE_START_FALL,
 	BOUNCE_START_WALK,
 	BOUNCE_START_CROUCHWALK,
 	BOUNCE_START_JUMP,
@@ -173,6 +174,9 @@ enum struct Session
 	ArrayList bounces;
 	int indexer[BOUNCE_TYPE_COUNT*(BOUNCE_START_COUNT+1)]; // BOUNCE_START_ANGLE_STANDING is for the simplest launcher strat, BOUNCE_START_ANGLE_DUCKING is for the simplest strat for the player's launcher, and BOUNCE_START_COUNT is the angled start for the player's launcher
 	int displayed;
+
+	bool grounded;
+	float landtick;
 }
 
 enum struct Launcher
@@ -211,6 +215,7 @@ public void OnPluginStart()
 	}
 
 	/* SET ARRAYS */
+	BOUNCE_START[BOUNCE_START_FALL]          [0] =               0.0; BOUNCE_START[BOUNCE_START_FALL]          [1] =                                   NaN; // Fall
 	BOUNCE_START[BOUNCE_START_WALK]          [0] =               0.0; BOUNCE_START[BOUNCE_START_WALK]          [1] = 0.5*(GRAVITY*TICK_INTERVAL)          ; // Walk
 	BOUNCE_START[BOUNCE_START_CROUCHWALK]    [0] = -HULL_HEIGHT_DIFF; BOUNCE_START[BOUNCE_START_CROUCHWALK]    [1] = 0.5*(GRAVITY*TICK_INTERVAL)          ; // Crouchwalk
 	BOUNCE_START[BOUNCE_START_JUMP]          [0] =               0.0; BOUNCE_START[BOUNCE_START_JUMP]          [1] = 0.5*(GRAVITY*TICK_INTERVAL) + JUMPVEL; // Jump
@@ -231,6 +236,7 @@ public void OnPluginStart()
 		offset[2] = OFFSET_UP_DUCK   ; CopyVector(offset, LAUNCHER_OFFSET[launcher][CROUCHED]  ); // Crouched
 	}
 
+	TEXT_BOUNCE_START[BOUNCE_START_FALL]           = "Fall";
 	TEXT_BOUNCE_START[BOUNCE_START_WALK]           = "Walk off";
 	TEXT_BOUNCE_START[BOUNCE_START_CROUCHWALK]     = "Crouchwalk off";
 	TEXT_BOUNCE_START[BOUNCE_START_JUMP]           = "Jump off";
@@ -271,6 +277,39 @@ public void OnClientConnected(int client)
 public void OnClientDisconnect_Post(int client)
 {
 	ClearSession(client);
+}
+
+public void OnGameFrame()
+{
+	for (int client = 1; client <= MaxClients; client++) {
+		if (!IsClientInGame(client))
+			continue;
+		else if (!IsPlayerAlive(client))
+			continue;
+
+		if (g_sessions[client].ground.edict <= ENTITY_NONE)
+			continue;
+
+		float pos[3]; GetEntPropVector(client, Prop_Data, "m_vecOrigin", pos);
+		float vel[3]; GetEntPropVector(client, Prop_Data, "m_vecVelocity", vel);
+		int ground = GetEntPropEnt(client, Prop_Data, "m_hGroundEntity");
+
+		int ducked = (GetEntProp(client, Prop_Data, "m_fFlags") & FL_DUCKING) > 0;
+		float landtick = GetLandTickFromStartZVel(TICK_INTERVAL, GRAVITY, MAXVEL, pos[2] - ducked*HULL_HEIGHT_DIFF + Pow(2.0,15.0), vel[2]); // Add max world length to avoid negative numbers
+
+		float diff = FloatMin(landtick, g_sessions[client].landtick) - FloatMax(landtick, g_sessions[client].landtick);
+		bool changed = EPSILON <= FloatFraction(diff) < 1 - EPSILON;
+
+		bool statechange = (g_sessions[client].grounded) ^ (ground >= 0);
+
+		g_sessions[client].grounded = ground >= 0;
+		g_sessions[client].landtick = landtick;
+
+		if (statechange || changed&&ground==-1) {
+			UpdateBounces(client);
+			ShowMenu(client);
+		}
+	}
 }
 
 void ClearSession(int client)
@@ -373,7 +412,11 @@ int CompareBounces(int index1, int index2, Handle array, Handle datapack)
 	else if (bounce1.type > bounce2.type)
 		return 1;
 
-	if (bounce1.start < bounce2.start && bounce1.start <= BOUNCE_START_CEILING)
+	if (bounce1.start == BOUNCE_START_FALL && bounce2.start != BOUNCE_START_FALL)
+		return -1;
+	else if (bounce1.start != BOUNCE_START_FALL && bounce2.start == BOUNCE_START_FALL)
+		return 1;
+	else if (bounce1.start < bounce2.start && bounce1.start <= BOUNCE_START_CEILING)
 		return -1;
 	else if (bounce1.start > bounce2.start && bounce2.start <= BOUNCE_START_CEILING)
 		return 1;
@@ -437,7 +480,24 @@ void UpdateBounces(int client)
 		for (int start = 0; start <= BOUNCE_START_CEILING; start++) {
 			bounce.start = start;
 
-			if (CheckBounce(g_sessions[client], bounce))
+			if (start == BOUNCE_START_FALL) {
+				Plane floor; floor.InitVars(g_sessions[client].floor.edict, g_sessions[client].floor.dist, g_sessions[client].floor.normal);
+
+				float pos[3]; GetEntPropVector(client, Prop_Data, "m_vecOrigin", pos);
+				float vel[3]; GetEntPropVector(client, Prop_Data, "m_vecVelocity", vel);
+				if (GetEntProp(client, Prop_Data, "m_fFlags") & FL_DUCKING)
+					pos[2] -= HULL_HEIGHT_DIFF;
+
+				g_sessions[client].floor.InitVars(ENTITY_INVALID, pos[2] - DIST_EPSILON, {0.0, 0.0, 1.0});
+
+				BOUNCE_START[BOUNCE_START_FALL][1] = vel[2];
+
+				if (!g_sessions[client].grounded && CheckBounce(g_sessions[client], bounce))
+					g_sessions[client].bounces.PushArray(bounce);
+
+				g_sessions[client].floor.InitVars(floor.edict, floor.dist, floor.normal);
+            }
+			else if (CheckBounce(g_sessions[client], bounce))
 				g_sessions[client].bounces.PushArray(bounce);
 		}
 
@@ -561,13 +621,13 @@ void DrawBounceType(int client, Panel panel, int type)
 {
 	char line[50];
 
-	bool disable = true;
+	bool empty = true;
 	bool hassimple = false;
 	for (int start = 0; start <= BOUNCE_START_COUNT; start++) {
 		if (g_sessions[client].indexer[type*(BOUNCE_START_COUNT+1) + start] >= 0) {
-			disable = false;
+			empty = false;
 
-			if (start < BOUNCE_START_CEILING)
+			if (start < BOUNCE_START_CEILING && start != BOUNCE_START_FALL)
 				hassimple = true;
 		}
 	}
@@ -575,9 +635,11 @@ void DrawBounceType(int client, Panel panel, int type)
 	panel.CurrentKey = 3 + type;
 
 	Format(line, sizeof(line), "%s", TEXT_BOUNCE_TYPE[type]);
-	if (disable) {
+	if (empty || g_sessions[client].floor.edict <= ENTITY_NONE && g_sessions[client].ceiling.edict <= ENTITY_NONE) {
 		panel.DrawItem(line, ITEMDRAW_DISABLED);
-		return;
+
+		if (empty)
+			return;
 	}
 	else {
 		panel.DrawItem(line);
@@ -1082,7 +1144,7 @@ bool IsBounceValid(const Session session, const Bounce bounce)
 		return false;
 
 	// Start surface needs to be known
-	if (bounce.start != BOUNCE_START_CEILING && session.floor.edict <= ENTITY_NONE || bounce.start == BOUNCE_START_CEILING && session.ceiling.edict <= ENTITY_NONE)
+	if (bounce.start != BOUNCE_START_CEILING && session.floor.edict == ENTITY_NONE || bounce.start == BOUNCE_START_CEILING && session.ceiling.edict <= ENTITY_NONE)
 		return false;
 
 	return true;
