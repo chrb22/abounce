@@ -17,6 +17,8 @@ static const float NaNVector[3] =				{NaN, NaN, NaN};
 #define Inf										view_as<float>(0x7F800000)								// Inf
 #define EPSILON									0.001
 
+#define TIMER_INTERVAL							0.1														// Interval for live checking update
+
 #define DIST_EPSILON							0.03125													// 1/(1 << 5) = 0.3125 // From coordsize.h
 #define TICK_INTERVAL							0.015													// 1/0.015 = 66.6666...
 
@@ -206,6 +208,9 @@ char TEXT_LAUNCHER[LAUNCHER_COUNT+1][50];
 bool g_paneldraw = false;
 Session g_sessions[MAXPLAYERS+1];
 
+ConVar g_convar_live;
+Handle g_timer_live;
+
 public void OnPluginStart()
 {
 	/* INITIALISE SESSIONS */
@@ -267,6 +272,15 @@ public void OnPluginStart()
 
 	RegConsoleCmd("sm_bounce", Command_Bounce);
 	RegConsoleCmd("sm_bcheck", Command_Bounce);
+
+	g_convar_live = CreateConVar("sm_abounce_live", "0", "Enables live checking");
+	AutoExecConfig(true, "abounce");
+
+	if (g_convar_live.BoolValue) {
+		g_timer_live = CreateTimer(TIMER_INTERVAL, Timer_Live, _, TIMER_REPEAT);
+	}
+
+	g_convar_live.AddChangeHook(ConVarChanged_Live);
 }
 
 public void OnClientConnected(int client)
@@ -279,7 +293,19 @@ public void OnClientDisconnect_Post(int client)
 	ClearSession(client);
 }
 
-public void OnGameFrame()
+public void ConVarChanged_Live(ConVar convar, const char[] old_value, const char[] new_value)
+{
+	if (strcmp(old_value, new_value) == 0)
+		return;
+
+	if (convar.BoolValue)
+		g_timer_live = CreateTimer(TIMER_INTERVAL, Timer_Live, _, TIMER_REPEAT);
+	else
+		CloseHandle(g_timer_live);
+
+}
+
+public Action Timer_Live(Handle timer)
 {
 	for (int client = 1; client <= MaxClients; client++) {
 		if (!IsClientInGame(client))
@@ -310,6 +336,8 @@ public void OnGameFrame()
 			ShowMenu(client);
 		}
 	}
+
+	return Plugin_Continue;
 }
 
 void ClearSession(int client)
