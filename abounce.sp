@@ -9,7 +9,7 @@ public Plugin myinfo =
 	name = "Bounce Analyser",
 	author = "ILDPRUT",
 	description = "Shows possible bounce methods",
-	version = "1.0.5",
+	version = "1.0.6",
 }
 
 #define NaN										view_as<float>(0x7FFFFFFF)								// NaN
@@ -885,25 +885,25 @@ void FindPlane(int edict, const float start[3], const float angle[3], Plane plan
 	float maxs[3]; maxs[0] =  HULL_WIDTH/2.0; maxs[1] =  HULL_WIDTH/2.0; maxs[2] = HULL_HEIGHT_DUCK;
 	bool do_hull = FloatIsNaN(angle[0]) || FloatIsNaN(angle[1]) || FloatIsNaN(angle[2]); // Being NaN means hull check down
 
-	Handle g_trace_rough;
+	Handle trace_rough;
 	if (edict > ENTITY_NONE)
 	{
-		g_trace_rough = TR_ClipRayToEntityEx(start, angle, MASK_SOLID, RayType_Infinite, edict);
+		trace_rough = TR_ClipRayToEntityEx(start, angle, MASK_ALL, RayType_Infinite, edict);
 	}
 	else if (do_hull) {
 		float end[3];
 		end[0] = start[0]; end[1] = start[1]; end[2] = start[2] - GROUND_LAND_INTERVAL;
-		g_trace_rough = TR_TraceHullFilterEx(start, end, mins, maxs, MASK_PLAYERSOLID, TraceEntityFilterPlayer);
+		trace_rough = TR_TraceHullFilterEx(start, end, mins, maxs, MASK_PLAYERSOLID, TraceEntityFilterPlayer);
 	}
 	else {
-		g_trace_rough = TR_TraceRayFilterEx(start, angle, MASK_PLAYERSOLID, RayType_Infinite, TraceEntityFilterPlayer);
+		trace_rough = TR_TraceRayFilterEx(start, angle, MASK_PLAYERSOLID, RayType_Infinite, TraceEntityFilterPlayer);
 	}
 
-	if (TR_DidHit(g_trace_rough)) {
+	if (TR_DidHit(trace_rough)) {
 		float point[3];
 		float normal[3];
-		TR_GetEndPosition(point, g_trace_rough);
-		TR_GetPlaneNormal(g_trace_rough, normal);
+		TR_GetEndPosition(point, trace_rough);
+		TR_GetPlaneNormal(trace_rough, normal);
 
 		float startpoint[3];
 		float endpoint[3];
@@ -911,25 +911,25 @@ void FindPlane(int edict, const float start[3], const float angle[3], Plane plan
 		OffsetVector(point, normal, -2.5*DIST_EPSILON, endpoint);
 
 		// Gets rid of some small errors and let's us be sure that the endpoint is DIST_EPSILON from surface
-		Handle g_trace_fine;
+		Handle trace_fine;
 		if (edict > ENTITY_NONE)
-			g_trace_fine = TR_ClipRayToEntityEx(startpoint, endpoint, MASK_SOLID, RayType_EndPoint, edict);
+			trace_fine = TR_ClipRayToEntityEx(startpoint, endpoint, MASK_ALL, RayType_EndPoint, edict);
 		else if (do_hull)
 		{
-			g_trace_fine = TR_TraceHullFilterEx(startpoint, endpoint, mins, maxs, MASK_PLAYERSOLID, TraceEntityFilterPlayer);
+			trace_fine = TR_TraceHullFilterEx(startpoint, endpoint, mins, maxs, MASK_PLAYERSOLID, TraceEntityFilterPlayer);
 		}
 		else
-			g_trace_fine = TR_TraceRayFilterEx(startpoint, endpoint, MASK_PLAYERSOLID, RayType_EndPoint, TraceEntityFilterPlayer);
+			trace_fine = TR_TraceRayFilterEx(startpoint, endpoint, MASK_PLAYERSOLID, RayType_EndPoint, TraceEntityFilterPlayer);
 
-		TR_GetEndPosition(point, g_trace_fine);
+		TR_GetEndPosition(point, trace_fine);
 		float dist = DotVectors(point, normal) - DIST_EPSILON;
 
-		plane.InitVars(TR_GetEntityIndex(g_trace_fine), dist, normal);
+		plane.InitVars(TR_GetEntityIndex(trace_fine), dist, normal);
 
-		CloseHandle(g_trace_fine);
+		CloseHandle(trace_fine);
 	}
 
-	CloseHandle(g_trace_rough);
+	CloseHandle(trace_rough);
 }
 
 int FindGround(int client, float start[3], float angle[3])
@@ -958,6 +958,7 @@ int FindGround(int client, float start[3], float angle[3])
 			DataPack datapack = new DataPack();
 			datapack.WriteCell(client);
 			datapack.WriteFloat(start[0]); datapack.WriteFloat(start[1]); datapack.WriteFloat(start[2]);
+			datapack.WriteFloat(end[0]);   datapack.WriteFloat(end[1]);   datapack.WriteFloat(end[2]);
 			datapack.WriteFloat(angle[0]); datapack.WriteFloat(angle[1]); datapack.WriteFloat(angle[2]);
 			TR_EnumerateEntities(start, end, PARTITION_TRIGGER_EDICTS, RayType_EndPoint, FindTrigger, datapack);
 
@@ -980,7 +981,16 @@ bool FindTrigger(int edict, DataPack datapack) {
 	datapack.Reset();
 	int client = datapack.ReadCell();
 	float start[3]; start[0] = datapack.ReadFloat(); start[1] = datapack.ReadFloat(); start[2] = datapack.ReadFloat();
+	float end[3];   end[0] = datapack.ReadFloat();   end[1] = datapack.ReadFloat();   end[2] = datapack.ReadFloat();
 	float angle[3]; angle[0] = datapack.ReadFloat(); angle[1] = datapack.ReadFloat(); angle[2] = datapack.ReadFloat();
+
+	Handle trace_test = TR_ClipRayToEntityEx(start, end, MASK_ALL, RayType_EndPoint, edict);
+	bool didhit = TR_DidHit(trace_test);
+
+	CloseHandle(trace_test);
+
+	if (!didhit)
+		return true;
 
 	Plane plane;
 	FindPlane(edict, start, angle, plane);
@@ -994,7 +1004,7 @@ bool FindTrigger(int edict, DataPack datapack) {
 		if (dist_diff_new < 0.0 || (!FloatIsNaN(dist_diff_old) && dist_diff_old <= dist_diff_new))
 			replace = false;
 
-		if (!CompareVectors(plane.normal, {0.0, 0.0, 1.0}) && !CompareVectors(g_sessions[client].ground.normal, {0.0, 0.0, 1.0}) && !AreParallel(plane.normal, g_sessions[client].ground.normal))
+		if (!AreParallel(plane.normal, g_sessions[client].ground.normal))
 			replace = false;
 
 		if (replace) {
