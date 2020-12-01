@@ -509,21 +509,23 @@ void UpdateBounces(int client)
 			bounce.start = start;
 
 			if (start == BOUNCE_START_FALL) {
-				Plane floor; floor.InitVars(g_sessions[client].floor.edict, g_sessions[client].floor.dist, g_sessions[client].floor.normal);
+				if (g_convar_live.BoolValue) {
+					Plane floor; floor.InitVars(g_sessions[client].floor.edict, g_sessions[client].floor.dist, g_sessions[client].floor.normal);
 
-				float pos[3]; GetEntPropVector(client, Prop_Data, "m_vecOrigin", pos);
-				float vel[3]; GetEntPropVector(client, Prop_Data, "m_vecVelocity", vel);
-				if (GetEntProp(client, Prop_Data, "m_fFlags") & FL_DUCKING)
-					pos[2] -= HULL_HEIGHT_DIFF;
+					float pos[3]; GetEntPropVector(client, Prop_Data, "m_vecOrigin", pos);
+					float vel[3]; GetEntPropVector(client, Prop_Data, "m_vecVelocity", vel);
+					if (GetEntProp(client, Prop_Data, "m_fFlags") & FL_DUCKING)
+						pos[2] -= HULL_HEIGHT_DIFF;
 
-				g_sessions[client].floor.InitVars(ENTITY_INVALID, pos[2] - DIST_EPSILON, {0.0, 0.0, 1.0});
+					g_sessions[client].floor.InitVars(ENTITY_INVALID, pos[2] - DIST_EPSILON, {0.0, 0.0, 1.0});
 
-				BOUNCE_START[BOUNCE_START_FALL][1] = vel[2];
+					BOUNCE_START[BOUNCE_START_FALL][1] = vel[2];
 
-				if (!g_sessions[client].grounded && CheckBounce(g_sessions[client], bounce))
-					g_sessions[client].bounces.PushArray(bounce);
+					if (!g_sessions[client].grounded && CheckBounce(g_sessions[client], bounce))
+						g_sessions[client].bounces.PushArray(bounce);
 
-				g_sessions[client].floor.InitVars(floor.edict, floor.dist, floor.normal);
+					g_sessions[client].floor.InitVars(floor.edict, floor.dist, floor.normal);
+				}
             }
 			else if (CheckBounce(g_sessions[client], bounce))
 				g_sessions[client].bounces.PushArray(bounce);
