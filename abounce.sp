@@ -1656,20 +1656,20 @@ void SolveTrigonometric(const float coeff[5], float angs[4])
 	for (int i = 0; i < 4; i++) angs[i] = ArcCosine(zeros[i]);
 }
 
-// Solve Quadric using Descartes' solution
+// Solve Quartic using Descartes' solution https://en.wikipedia.org/wiki/Quartic_function#Descartes'_solution
 void SolveQuadric(const float coeff[5], float zeros[4])
 {
 	// Divide through with coeff[4]
 	float b4 = coeff[3]/coeff[4]; float c4 = coeff[2]/coeff[4]; float d4 = coeff[1]/coeff[4]; float e4 = coeff[0]/coeff[4];
 
-	// x^4 + b*x^4 + c*x^2 + d*x + e -> y^2 + p*y^2 + q*y + r with x = y - b/4
+	// x^4 + b*x^3 + c*x^2 + d*x + e -> y^4 + p*y^2 + q*y + r with x = y - b/4
 	float p4 = 8*c4 - 3*P2(b4); float q4 = P3(b4) - 4*b4*c4 + 8*d4; float r4 = -3*P4(b4) + 256*e4 - 64*b4*d4 + 16*P2(b4)*c4;
 	p4 = p4/8; q4 = q4/8; r4 = r4/256;
 
-	// y^2 + p*y^2 + q*y + r = (y^2 + u*t + v)*(y^2 + s*y + t) -> U^3 + b*U^2 + c**U + d = 0 with U = u^2
+	// y^4 + p*y^2 + q*y + r = (y^2 + u*t + v)*(y^2 + s*y + t) -> U^3 + b*U^2 + c*U + d = 0 with U = u^2
 	float b3 = 2*p4; float c3 = P2(p4) - 4*r4; float d3 = -P2(q4);
 
-	// U^3 + b*U^2 + c**U + d = 0 -> T^3 + p*T + q = 0 with U = T - b/3
+	// U^3 + b*U^2 + c*U + d = 0 -> T^3 + p*T + q = 0 with U = T - b/3
 	float p3 = 3*c3 - P2(b3); float q3 = 2*P3(b3) - 9*b3*c3 + 27*d3;
 	p3 = p3/3; q3 = q3/27;
 
