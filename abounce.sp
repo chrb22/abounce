@@ -321,7 +321,10 @@ public Action Timer_Live(Handle timer)
 		int ground = GetEntPropEnt(client, Prop_Data, "m_hGroundEntity");
 
 		int ducked = (GetEntProp(client, Prop_Data, "m_fFlags") & FL_DUCKING) > 0;
-		float landtick = GetLandTickFromStartZVel(TICK_INTERVAL, GRAVITY, MAXVEL, pos[2] - ducked*HULL_HEIGHT_DIFF + Pow(2.0,15.0), vel[2]); // Add max world length to avoid negative numbers
+		float landtick = GetLandTickFromStartZVel(TICK_INTERVAL, GRAVITY, MAXVEL, (pos[2] - ducked*HULL_HEIGHT_DIFF) - GetGroundZ(g_sessions[client]), vel[2]);
+
+		if (FloatIsNaN(landtick))
+			return Plugin_Continue;
 
 		float diff = landtick - g_sessions[client].landtick;
 		bool changed = EPSILON <= FloatFraction(diff) < 1 - EPSILON;
@@ -1403,7 +1406,8 @@ float GetZFromTick(float ti, float gravity, float maxvel, float height, float st
 	int maxveltick = GetMaxVelTickFromStartZVel(ti, gravity, maxvel, startzvel);
 	int tick0 = tick < maxveltick ? tick : (maxveltick - 1);
 
-	float z = height + (startzvel - 0.5*gravity*ti)*ti * tick0 + (tick0)*(tick0 + 1)*0.5*gravity*ti*ti; // Last part is written in a weird order to (try) avoid precision errors
+	//float z = height + (startzvel - 0.5*gravity*ti)*ti * tick0 + (tick0)*(tick0 + 1)*0.5*gravity*ti*ti; // Last part is written in a weird order to (try) avoid precision errors
+	float z = height + 0.5*(ti*tick0)*(2*startzvel + (ti*tick0)*gravity);
 
 	if (tick >= maxveltick)
 		z -= maxvel*ti * (tick - tick0);
@@ -1423,13 +1427,17 @@ float GetZFromTick(float ti, float gravity, float maxvel, float height, float st
 
 float GetLandTickFromStartZVel(float ti, float gravity, float maxvel, float height, float startzvel)
 {
-	int tick0 = GetMaxVelTickFromStartZVel(ti, gravity, maxvel, startzvel) - 1;
+	int tick0 = GetMaxVelTickFromStartZVel(ti, gravity, maxvel, startzvel);
 	float z0 = GetZFromTick(ti, gravity, maxvel, height, startzvel, tick0);
 
-	if (z0 <= 0.0)
+	tick0 = tick0 <= 0 ? 0 : tick0 - 1;
+
+	if (startzvel*startzvel - 2.0*gravity*height < 0.0)
+		return NaN;
+	else if (z0 <= 0.0)
 		return -(startzvel + SquareRoot(startzvel*startzvel - 2.0*gravity*height)) / (gravity*ti);
 	else
-		return height/(maxvel*ti) + (1 + startzvel/maxvel)*tick0 + 0.5*gravity*ti/maxvel * tick0*tick0;
+		return height/(maxvel*ti) + (1.0 + startzvel/maxvel)*tick0 + 0.5*gravity*ti/maxvel * tick0*tick0;
 }
 
 int GetMaxVelTickFromLandTick(float ti, float gravity, float maxvel, float height, int landtick)
