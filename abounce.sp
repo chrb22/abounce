@@ -881,9 +881,18 @@ void FindPlane(int edict, const float start[3], const float angle[3], Plane plan
 {
 	plane.InitVars(ENTITY_NONE, NaN, NaNVector);
 
-	float mins[3]; mins[0] = -HULL_WIDTH/2.0; mins[1] = -HULL_WIDTH/2.0; mins[2] = 0.0;
-	float maxs[3]; maxs[0] =  HULL_WIDTH/2.0; maxs[1] =  HULL_WIDTH/2.0; maxs[2] = HULL_HEIGHT_DUCK;
 	bool do_hull = FloatIsNaN(angle[0]) || FloatIsNaN(angle[1]) || FloatIsNaN(angle[2]); // Being NaN means hull check down
+
+	float mins[3];
+	float maxs[3];
+	if (do_hull) {
+		mins[0] = -HULL_WIDTH/2.0; mins[1] = -HULL_WIDTH/2.0; mins[2] = 0.0;
+		maxs[0] =  HULL_WIDTH/2.0; maxs[1] =  HULL_WIDTH/2.0; maxs[2] = HULL_HEIGHT_DUCK;
+	}
+	else {
+		mins[0] = -DIST_EPSILON/2.0; mins[1] = -DIST_EPSILON/2.0; mins[2] = 0.0;
+		maxs[0] =  DIST_EPSILON/2.0; maxs[1] =  DIST_EPSILON/2.0; maxs[2] = DIST_EPSILON;
+	}
 
 	Handle trace_rough;
 	if (edict > ENTITY_NONE)
@@ -907,19 +916,20 @@ void FindPlane(int edict, const float start[3], const float angle[3], Plane plan
 
 		float startpoint[3];
 		float endpoint[3];
-		OffsetVector(point, normal, DIST_EPSILON, startpoint);
-		OffsetVector(point, normal, -2.5*DIST_EPSILON, endpoint);
+		OffsetVector(point, normal, 1.0 - DIST_EPSILON, startpoint);
+		OffsetVector(point, normal, -1.0 - DIST_EPSILON, endpoint);
 
-		// Gets rid of some small errors and let's us be sure that the endpoint is DIST_EPSILON from surface
+		// Gets rid of some small errors and let's us be sure that the endpoint is DIST_EPSILON from surface.
+		// Also have to use hull traces here because rays don't produce the 0.5 unit bug from VPhysics brushes.
 		Handle trace_fine;
 		if (edict > ENTITY_NONE)
-			trace_fine = TR_ClipRayToEntityEx(startpoint, endpoint, MASK_ALL, RayType_EndPoint, edict);
+			trace_fine = TR_ClipRayHullToEntityEx(startpoint, endpoint, mins, maxs, MASK_ALL, edict);
 		else if (do_hull)
 		{
 			trace_fine = TR_TraceHullFilterEx(startpoint, endpoint, mins, maxs, MASK_PLAYERSOLID, TraceEntityFilterPlayer);
 		}
 		else
-			trace_fine = TR_TraceRayFilterEx(startpoint, endpoint, MASK_PLAYERSOLID, RayType_EndPoint, TraceEntityFilterPlayer);
+			trace_fine = TR_TraceHullFilterEx(startpoint, endpoint, mins, maxs, MASK_PLAYERSOLID, TraceEntityFilterPlayer);
 
 		TR_GetEndPosition(point, trace_fine);
 		float dist = DotVectors(point, normal) - DIST_EPSILON;
