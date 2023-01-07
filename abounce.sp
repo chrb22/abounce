@@ -104,7 +104,8 @@ enum
 	LAUNCHER_STOCK,
 	LAUNCHER_ORIGINAL,
 	LAUNCHER_MANGLER,
-	LAUNCHER_COUNT
+	LAUNCHER_COUNT,
+	LAUNCHER_NONE
 }
 
 enum
@@ -358,6 +359,9 @@ void ClearSession(int client)
 
 int GetLauncher(int client)
 {
+	if (!IsPlayerAlive(client))
+		return LAUNCHER_NONE;
+
 	int launcheredict = GetPlayerWeaponSlot(client, 0);
 	int launcherid = GetEntProp(launcheredict, Prop_Send, "m_iItemDefinitionIndex");
 
