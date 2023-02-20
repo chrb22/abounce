@@ -840,7 +840,7 @@ public int PanelHandler(Menu menu, MenuAction action, int client, int choice)
 	if (action == MenuAction_Select) {
 		if (choice == 10) {
 			ClearSession(client);
-			return;
+			return 0;
 		}
 
 		if (choice <= 2) {
@@ -879,6 +879,8 @@ public int PanelHandler(Menu menu, MenuAction action, int client, int choice)
 		if (!g_paneldraw)
 			ClearSession(client);
 	}
+
+	return 0;
 }
 
 /* PLUGIN */
