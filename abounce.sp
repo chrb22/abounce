@@ -886,9 +886,11 @@ public int PanelHandler(Menu menu, MenuAction action, int client, int choice)
 /* PLUGIN */
 bool TraceEntityFilterPlayer(int entity, int contentsMask) { return (entity == 0 || entity > MaxClients); }
 
-void FindPlane(int edict, const float start[3], const float angle[3], Plane plane)
+void FindPlane(int edict, const float start[3], const float angle[3], Plane plane, float end[3] = NULL_VECTOR)
 {
 	plane.InitVars(ENTITY_NONE, NaN, NaNVector);
+	if (!IsNullVector(end))
+		end = {NaN, NaN, NaN};
 
 	bool do_hull = FloatIsNaN(angle[0]) || FloatIsNaN(angle[1]) || FloatIsNaN(angle[2]); // Being NaN means hull check down
 
@@ -896,11 +898,11 @@ void FindPlane(int edict, const float start[3], const float angle[3], Plane plan
 	float maxs[3];
 	if (do_hull) {
 		mins[0] = -HULL_WIDTH/2.0; mins[1] = -HULL_WIDTH/2.0; mins[2] = 0.0;
-		maxs[0] =  HULL_WIDTH/2.0; maxs[1] =  HULL_WIDTH/2.0; maxs[2] = HULL_HEIGHT_DUCK;
+		maxs[0] =  HULL_WIDTH/2.0; maxs[1] =  HULL_WIDTH/2.0; maxs[2] = 0.0;
 	}
 	else {
-		mins[0] = -DIST_EPSILON/2.0; mins[1] = -DIST_EPSILON/2.0; mins[2] = 0.0;
-		maxs[0] =  DIST_EPSILON/2.0; maxs[1] =  DIST_EPSILON/2.0; maxs[2] = DIST_EPSILON;
+		mins[0] = -0.00001/2.0; mins[1] = -0.00001/2.0; mins[2] = 0.0;
+		maxs[0] =  0.00001/2.0; maxs[1] =  0.00001/2.0; maxs[2] = 0.0;
 	}
 
 	Handle trace_rough;
@@ -909,46 +911,81 @@ void FindPlane(int edict, const float start[3], const float angle[3], Plane plan
 		trace_rough = TR_ClipRayToEntityEx(start, angle, MASK_ALL, RayType_Infinite, edict);
 	}
 	else if (do_hull) {
-		float end[3];
-		end[0] = start[0]; end[1] = start[1]; end[2] = start[2] - GROUND_LAND_INTERVAL;
-		trace_rough = TR_TraceHullFilterEx(start, end, mins, maxs, MASK_PLAYERSOLID, TraceEntityFilterPlayer);
+		float end_hull[3];
+		end_hull[0] = start[0]; end_hull[1] = start[1]; end_hull[2] = start[2] - GROUND_LAND_INTERVAL;
+		trace_rough = TR_TraceHullFilterEx(start, end_hull, mins, maxs, MASK_PLAYERSOLID, TraceEntityFilterPlayer);
 	}
 	else {
 		trace_rough = TR_TraceRayFilterEx(start, angle, MASK_PLAYERSOLID, RayType_Infinite, TraceEntityFilterPlayer);
 	}
 
-	if (TR_DidHit(trace_rough)) {
-		float point[3];
-		float normal[3];
-		TR_GetEndPosition(point, trace_rough);
-		TR_GetPlaneNormal(trace_rough, normal);
+	if (!TR_DidHit(trace_rough)) {
+		CloseHandle(trace_rough);
+		return;
+	}
+
+	float point[3];
+	float normal[3];
+	TR_GetEndPosition(point, trace_rough);
+	TR_GetPlaneNormal(trace_rough, normal);
+	CloseHandle(trace_rough);
+
+	if (edict <= ENTITY_NONE && !do_hull && normal[2] != 0.0 && FloatAbs(normal[2]) != 1.0) {
+		float dir[3] = {0.0, 0.0, 0.0};
+		dir[2] = normal[2] > 0.0 ? 1.0 : -1.0;
 
 		float startpoint[3];
 		float endpoint[3];
-		OffsetVector(point, normal, 1.0 - DIST_EPSILON, startpoint);
-		OffsetVector(point, normal, -1.0 - DIST_EPSILON, endpoint);
+		OffsetVector(point, dir, HULL_HEIGHT_DUCK, startpoint);
+		OffsetVector(point, dir, -1.0 - DIST_EPSILON, endpoint);
 
-		// Gets rid of some small errors and let's us be sure that the endpoint is DIST_EPSILON from surface.
-		// Also have to use hull traces here because rays don't produce the 0.5 unit bug from VPhysics brushes.
-		Handle trace_fine;
-		if (edict > ENTITY_NONE)
-			trace_fine = TR_ClipRayHullToEntityEx(startpoint, endpoint, mins, maxs, MASK_ALL, edict);
-		else if (do_hull)
-		{
-			trace_fine = TR_TraceHullFilterEx(startpoint, endpoint, mins, maxs, MASK_PLAYERSOLID, TraceEntityFilterPlayer);
+		float mins_check[3];
+		float maxs_check[3];
+		mins_check[0] = -HULL_WIDTH/2.0; mins_check[1] = -HULL_WIDTH/2.0; mins_check[2] = 0.0;
+		maxs_check[0] =  HULL_WIDTH/2.0; maxs_check[1] =  HULL_WIDTH/2.0; maxs_check[2] = 0.0;
+
+		Handle trace_check = TR_TraceHullFilterEx(startpoint, endpoint, mins_check, maxs_check, MASK_PLAYERSOLID, TraceEntityFilterPlayer);
+
+		float point_check[3];
+		float normal_check[3];
+		TR_GetPlaneNormal(trace_check, normal_check);
+		TR_GetEndPosition(point_check, trace_check);
+
+		if (TR_DidHit(trace_check) && !TR_StartSolid(trace_check) && FloatAbs(normal_check[2]) == 1.0) {
+			plane.InitVars(TR_GetEntityIndex(trace_check), normal_check[2]*point_check[2] - DIST_EPSILON, normal_check);
+			if (!IsNullVector(end))
+				end = point_check;
+
+			CloseHandle(trace_check);
+			return;
 		}
-		else
-			trace_fine = TR_TraceHullFilterEx(startpoint, endpoint, mins, maxs, MASK_PLAYERSOLID, TraceEntityFilterPlayer);
 
-		TR_GetEndPosition(point, trace_fine);
-		float dist = DotVectors(point, normal) - DIST_EPSILON;
-
-		plane.InitVars(TR_GetEntityIndex(trace_fine), dist, normal);
-
-		CloseHandle(trace_fine);
+		CloseHandle(trace_check);
 	}
 
-	CloseHandle(trace_rough);
+	float startpoint[3];
+	float endpoint[3];
+	OffsetVector(point, normal, 1.0 - DIST_EPSILON, startpoint);
+	OffsetVector(point, normal, -1.0 - DIST_EPSILON, endpoint);
+
+	// Gets rid of some small errors and let's us be sure that the endpoint is DIST_EPSILON from surface.
+	// Also have to use hull traces here because rays don't produce the 0.5 unit bug from VPhysics brushes.
+	Handle trace_fine;
+	if (edict > ENTITY_NONE)
+		trace_fine = TR_ClipRayHullToEntityEx(startpoint, endpoint, mins, maxs, MASK_ALL, edict);
+	else
+		trace_fine = TR_TraceHullFilterEx(startpoint, endpoint, mins, maxs, MASK_PLAYERSOLID, TraceEntityFilterPlayer);
+
+	TR_GetEndPosition(point, trace_fine);
+	float dist = DotVectors(point, normal) - DIST_EPSILON;
+
+	plane.InitVars(TR_GetEntityIndex(trace_fine), dist, normal);
+	if (!IsNullVector(end))
+		end = point;
+
+	TR_GetPlaneNormal(trace_fine, normal);
+
+	CloseHandle(trace_fine);
 }
 
 int FindGround(int client, float start[3], float angle[3])
@@ -956,7 +993,8 @@ int FindGround(int client, float start[3], float angle[3])
 	int ground = GROUND_NONE;
 
 	Plane plane;
-	FindPlane(ENTITY_NONE, start, angle, plane);
+	float end_draw[3];
+	FindPlane(ENTITY_NONE, start, angle, plane, end_draw);
 	if (plane.edict > ENTITY_NONE) {
 		if (plane.normal[2] > EPSILON) {
 			ground = GROUND_UNCHANGED;
@@ -968,6 +1006,7 @@ int FindGround(int client, float start[3], float angle[3])
 
 			g_sessions[client].ground.InitVars(plane.edict, plane.dist, plane.normal);
 			g_sessions[client].trigger.InitVars(ENTITY_NONE, NaN, NaNVector);
+			g_sessions[client].wall.InitVars(ENTITY_NONE, NaN, NaNVector);
 
 			float dir[3];
 			float end[3];
@@ -986,6 +1025,26 @@ int FindGround(int client, float start[3], float angle[3])
 			g_sessions[client].wall_ground.InitVars(ENTITY_NONE, DotVectors(end, normal, 2) - HULL_WIDTH/2.0, normal);
 		}
 	}
+
+	if (ground == GROUND_NONE)
+		return GROUND_NONE;
+
+	end_draw[2] = GetGroundZ(g_sessions[client]);
+
+	float tl[3]; AddVectors(end_draw, {-24.0, -24.0, 1.0}, tl);
+	float tr[3]; AddVectors(end_draw, {-24.0, 24.0, 1.0}, tr);
+	float bl[3]; AddVectors(end_draw, {24.0, -24.0, 1.0}, bl);
+	float br[3]; AddVectors(end_draw, {24.0, 24.0, 1.0}, br);
+
+	int laser = PrecacheModel("materials/sprites/laserbeam.vmt");
+	TE_SetupBeamPoints(tl, tr, laser, 0, 0, 0, 1.0, 1.0, 1.0, 1, 0.0, {255, 255, 255, 255}, 15);
+	TE_SendToClient(client);
+	TE_SetupBeamPoints(tr, br, laser, 0, 0, 0, 1.0, 1.0, 1.0, 1, 0.0, {255, 255, 255, 255}, 15);
+	TE_SendToClient(client);
+	TE_SetupBeamPoints(br, bl, laser, 0, 0, 0, 1.0, 1.0, 1.0, 1, 0.0, {255, 255, 255, 255}, 15);
+	TE_SendToClient(client);
+	TE_SetupBeamPoints(bl, tl, laser, 0, 0, 0, 1.0, 1.0, 1.0, 1, 0.0, {255, 255, 255, 255}, 15);
+	TE_SendToClient(client);
 
 	return ground;
 }
@@ -1042,9 +1101,9 @@ int FindSurface(int client, float start[3], float angle[3])
 	int surface = SURFACE_NONE;
 
 	Plane plane;
-	FindPlane(ENTITY_NONE, start, angle, plane);
+	float end[3];
+	FindPlane(ENTITY_NONE, start, angle, plane, end);
 	if (plane.edict > ENTITY_NONE) {
-
 		if (CompareVectors(plane.normal, {0.0, 0.0, 1.0})){
 			surface = SURFACE_FLOOR;
 			g_sessions[client].floor.InitVars(plane.edict, plane.dist, plane.normal);
@@ -1053,7 +1112,62 @@ int FindSurface(int client, float start[3], float angle[3])
 			surface = SURFACE_CEILING;
 			g_sessions[client].ceiling.InitVars(plane.edict, plane.dist, plane.normal);
 		}
-		else if (FloatAbs(plane.normal[2] - 0.0) < EPSILON && (FloatAbs(plane.normal[0] - 0.0) < EPSILON || FloatAbs(plane.normal[1] - 0.0) < EPSILON)) {
+		else if (plane.normal[2] < 0.0) {
+			float normal_xy[3];
+			CopyVector(plane.normal, normal_xy, 2);
+			normal_xy[2] = 0.0;
+			NormalizeVector(normal_xy, normal_xy);
+
+			float dist = FloatAbs(normal_xy[0])*24.0 + FloatAbs(normal_xy[1])*24.0;
+
+			float wall_start[3];
+			OffsetVector(end, plane.normal, 2.0, wall_start);
+
+			Plane wall_plane;
+			float wall_end[3];
+
+			float wall_angle[3];
+			GetVectorAngles(plane.normal, wall_angle);
+
+			wall_angle[0] += 90.0;
+			FindPlane(ENTITY_NONE, wall_start, wall_angle, wall_plane, wall_end);
+
+			float diff[3];
+			SubtractVectors(end, wall_end, diff);
+			if (diff[0]*diff[0] + diff[1]*diff[1] >= dist*dist) {
+				wall_angle[0] += 180.0;
+				FindPlane(ENTITY_NONE, wall_start, wall_angle, wall_plane, wall_end);
+
+				SubtractVectors(end, wall_end, diff);
+				if (diff[0]*diff[0] + diff[1]*diff[1] >= dist*dist)
+					return SURFACE_NONE;
+			}
+
+			if (wall_plane.normal[2] != 0.0)
+				return SURFACE_NONE;
+
+			float normal_xy_neg[3];
+			CopyVector(normal_xy, normal_xy_neg);
+			NegateVector(normal_xy_neg);
+			if (!CompareVectors(wall_plane.normal, normal_xy, 2) && !CompareVectors(wall_plane.normal, normal_xy_neg, 2))
+				return SURFACE_NONE;
+
+			if (wall_end[2] < end[2]) {
+				if (FloatAbs(wall_plane.normal[0]) != 1.0 && FloatAbs(wall_plane.normal[1]) != 1.0)
+					return SURFACE_NONE;
+
+				wall_plane.dist -= DIST_EPSILON;
+			}
+
+			float z = GetWallZ(plane, wall_plane);
+
+			surface = SURFACE_CEILING;
+			g_sessions[client].ceiling.InitVars(plane.edict, -z - DIST_EPSILON, {0.0, 0.0, -1.0});
+
+			OffsetVector(wall_end, wall_plane.normal, dist, end);
+			end[2] = z;
+		}
+		else if (g_sessions[client].ground.normal[2] != 1.0 && FloatAbs(plane.normal[2] - 0.0) < EPSILON && (FloatAbs(plane.normal[0] - 0.0) < EPSILON || FloatAbs(plane.normal[1] - 0.0) < EPSILON)) {
 			// Unselect same wall
 			if (CompareVectors(plane.normal, g_sessions[client].wall.normal) && FloatAbs(plane.dist - g_sessions[client].wall.dist) < EPSILON) {
 				surface = SURFACE_NONE;
@@ -1064,6 +1178,45 @@ int FindSurface(int client, float start[3], float angle[3])
 				g_sessions[client].wall.InitVars(plane.edict, plane.dist, plane.normal);
 			}
 		}
+	}
+
+	if (surface == SURFACE_NONE)
+		return SURFACE_NONE;
+
+	float point[3];
+	CopyVector(end, point);
+	if (plane.normal[2] == 0.0) {
+		float dist = FloatAbs(plane.normal[0])*24.0 + FloatAbs(plane.normal[1])*24.0;
+		OffsetVector(end, plane.normal, dist, point);
+		point[2] = GetWallZ(g_sessions[client].ground, plane);
+	}
+
+	float offset = plane.normal[2] < 0.0 ? -1.0 : 1.0;
+
+	float tl[3]; AddVectors(point, {-24.0, -24.0, 0.0}, tl); tl[2] += offset;
+	float tr[3]; AddVectors(point, {-24.0, 24.0, 0.0}, tr); tr[2] += offset;
+	float bl[3]; AddVectors(point, {24.0, -24.0, 0.0}, bl); bl[2] += offset;
+	float br[3]; AddVectors(point, {24.0, 24.0, 0.0}, br); br[2] += offset;
+
+	int laser = PrecacheModel("materials/sprites/laserbeam.vmt");
+	TE_SetupBeamPoints(tl, tr, laser, 0, 0, 0, 1.0, 1.0, 1.0, 1, 0.0, {255, 255, 255, 255}, 15);
+	TE_SendToClient(client);
+	TE_SetupBeamPoints(tr, br, laser, 0, 0, 0, 1.0, 1.0, 1.0, 1, 0.0, {255, 255, 255, 255}, 15);
+	TE_SendToClient(client);
+	TE_SetupBeamPoints(br, bl, laser, 0, 0, 0, 1.0, 1.0, 1.0, 1, 0.0, {255, 255, 255, 255}, 15);
+	TE_SendToClient(client);
+	TE_SetupBeamPoints(bl, tl, laser, 0, 0, 0, 1.0, 1.0, 1.0, 1, 0.0, {255, 255, 255, 255}, 15);
+	TE_SendToClient(client);
+
+	if (plane.normal[2] == 0.0) {
+		TE_SetupBeamPoints(end, tl, laser, 0, 0, 0, 0.5, 1.0, 1.0, 1, 0.0, {255, 255, 255, 50}, 15);
+		TE_SendToClient(client);
+		TE_SetupBeamPoints(end, tr, laser, 0, 0, 0, 0.5, 1.0, 1.0, 1, 0.0, {255, 255, 255, 50}, 15);
+		TE_SendToClient(client);
+		TE_SetupBeamPoints(end, br, laser, 0, 0, 0, 0.5, 1.0, 1.0, 1, 0.0, {255, 255, 255, 50}, 15);
+		TE_SendToClient(client);
+		TE_SetupBeamPoints(end, bl, laser, 0, 0, 0, 0.5, 1.0, 1.0, 1, 0.0, {255, 255, 255, 50}, 15);
+		TE_SendToClient(client);
 	}
 
 	return surface;
@@ -1084,7 +1237,7 @@ float GetWallZ(const Plane surface, const Plane wall)
 	NormVector(surface_norm, surface_norm, 2);
 
 	float surface_dist = surface.dist;
-	float wall_dist = wall.dist;
+	float wall_dist = wall.dist + DIST_EPSILON;
 
 	if (dot < 0.0)
 		wall_dist += HULL_WIDTH;
