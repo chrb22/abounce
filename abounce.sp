@@ -9,7 +9,7 @@ public Plugin myinfo =
 	name = "Bounce Analyser",
 	author = "ILDPRUT",
 	description = "Shows possible bounce methods",
-	version = "1.0.7",
+	version = "1.0.8",
 }
 
 #define NaN										view_as<float>(0x7FFFFFFF)								// NaN
