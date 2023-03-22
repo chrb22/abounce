@@ -1185,14 +1185,27 @@ int FindSurface(int client, float start[3], float angle[3])
 			OffsetVector(wall_end, wall_plane.normal, dist, end);
 			end[2] = z;
 		}
+		else if (g_sessions[client].ground.normal[2] != 1.0 && FloatAbs(plane.normal[2] - 0.0) < EPSILON && (
+			 	       FloatAbs(g_sessions[client].ground.normal[0] - 0.0) < EPSILON && FloatAbs(plane.normal[0] - 0.0) < EPSILON
+			 	 	|| FloatAbs(g_sessions[client].ground.normal[1] - 0.0) < EPSILON && FloatAbs(plane.normal[1] - 0.0) < EPSILON
+	 	    	)) {
+
 			// Unselect same wall
 			if (CompareVectors(plane.normal, g_sessions[client].wall.normal) && FloatAbs(plane.dist - g_sessions[client].wall.dist) < EPSILON) {
 				surface = SURFACE_NONE;
 				g_sessions[client].wall.InitVars(ENTITY_NONE, NaN, NaNVector);
 			}
 			else {
+				Plane oldwall;
+				oldwall = g_sessions[client].wall;
+
 				surface = SURFACE_WALL;
 				g_sessions[client].wall.InitVars(plane.edict, plane.dist, plane.normal);
+
+				if (GetGroundZ(g_sessions[client]) > end[2]) {
+					g_sessions[client].wall = oldwall;
+					return SURFACE_NONE;
+				}
 			}
 		}
 	}
