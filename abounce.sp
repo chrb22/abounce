@@ -607,16 +607,20 @@ void UpdateBounces(int client)
 				continue;
 			}
 
-			if (g_sessions[client].indexer[strats] == -1)
-				g_sessions[client].indexer[strats] = i;
-			else if (CompareBounces(i, g_sessions[client].indexer[strats], g_sessions[client].bounces, datapack) == -1)
-				g_sessions[client].indexer[strats] = i;
+			if (g_sessions[client].indexer[stratl] == -1) {
+				if (g_sessions[client].indexer[strats] == -1)
+					g_sessions[client].indexer[strats] = i;
+				else if (CompareBounces(i, g_sessions[client].indexer[strats], g_sessions[client].bounces, datapack) == -1)
+					g_sessions[client].indexer[strats] = i;
+			}
 
 			if (bounce.launcher.launcher == launcher) {
 				if (g_sessions[client].indexer[stratl] == -1)
 					g_sessions[client].indexer[stratl] = i;
 				else if (CompareBounces(i, g_sessions[client].indexer[stratl], g_sessions[client].bounces, datapack) == -1)
 					g_sessions[client].indexer[stratl] = i;
+
+				g_sessions[client].indexer[strats] = -1;
 			}
 		}
 	}
@@ -675,8 +679,10 @@ void DrawBounceType(int client, Panel panel, int type)
 	if (empty || g_sessions[client].floor.edict <= ENTITY_NONE && g_sessions[client].ceiling.edict <= ENTITY_NONE) {
 		panel.DrawItem(line, ITEMDRAW_DISABLED);
 
-		if (empty)
+		if (empty) {
+			panel.DrawText("    No setups found");
 			return;
+		}
 	}
 	else {
 		panel.DrawItem(line);
@@ -735,6 +741,7 @@ void ShowMenu(int client)
 
 	Panel panel = new Panel();
 	panel.SetTitle("Bounce analyser");
+	panel.DrawText(" ");
 
 	float groundangle = RadToDeg(ArcCosine(g_sessions[client].ground.normal[2]));
 	bool steep = g_sessions[client].ground.normal[2] < GROUND_NORMAL_MIN;
@@ -810,10 +817,19 @@ void ShowMenu(int client)
 
 	panel.DrawText(line);
 
+	panel.DrawText(" ");
+
+	if (g_sessions[client].ground.normal[2] == 1.0)
+		line = "Select start floor/ceiling";
+	else
+		line = "Select start floor/ceiling/wall";
+
 	panel.CurrentKey = 1;
 	panel.DrawItem("Select ground");
 	panel.CurrentKey = 2;
-	panel.DrawItem("Select surface");
+	panel.DrawItem(line);
+
+	panel.DrawText(" ");
 
 	int typestart = 0;
 	int typeend = BOUNCE_TYPE_COUNT;
@@ -822,8 +838,10 @@ void ShowMenu(int client)
 		typeend = typestart + 1;
 	}
 
-	for (int type = typestart; type < typeend; type++)
+	for (int type = typestart; type < typeend; type++) {
 		DrawBounceType(client, panel, type);
+		panel.DrawText(" ");
+	}
 
  	panel.CurrentKey = 10;
 	panel.DrawItem("Exit");
@@ -1167,7 +1185,6 @@ int FindSurface(int client, float start[3], float angle[3])
 			OffsetVector(wall_end, wall_plane.normal, dist, end);
 			end[2] = z;
 		}
-		else if (g_sessions[client].ground.normal[2] != 1.0 && FloatAbs(plane.normal[2] - 0.0) < EPSILON && (FloatAbs(plane.normal[0] - 0.0) < EPSILON || FloatAbs(plane.normal[1] - 0.0) < EPSILON)) {
 			// Unselect same wall
 			if (CompareVectors(plane.normal, g_sessions[client].wall.normal) && FloatAbs(plane.dist - g_sessions[client].wall.dist) < EPSILON) {
 				surface = SURFACE_NONE;
