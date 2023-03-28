@@ -443,14 +443,19 @@ void UpdateGround(int client, float start[3], float angle[3])
 			g_sessions[client].floor.InitVars(plane.edict, plane.dist, plane.normal);
 		}
 		else if (g_convar_pos.BoolValue) {
-			float mins[3];
-			float maxs[3];
-			mins[0] = -HULL_WIDTH/2.0 - DIST_EPSILON; mins[1] = -HULL_WIDTH/2.0 - DIST_EPSILON; mins[2] = 0.0;
-			maxs[0] =  HULL_WIDTH/2.0 + DIST_EPSILON; maxs[1] =  HULL_WIDTH/2.0 + DIST_EPSILON; maxs[2] = HULL_HEIGHT;
+			bool setfloor = plane.edict > ENTITY_NONE;
 
-			TR_TraceHullFilter(pos, pos, mins, maxs, MASK_PLAYERSOLID, TraceEntityFilterPlayer);
+			if (!setfloor) {
+				float mins[3];
+				float maxs[3];
+				mins[0] = -HULL_WIDTH/2.0 - DIST_EPSILON; mins[1] = -HULL_WIDTH/2.0 - DIST_EPSILON; mins[2] = 0.0;
+				maxs[0] =  HULL_WIDTH/2.0 + DIST_EPSILON; maxs[1] =  HULL_WIDTH/2.0 + DIST_EPSILON; maxs[2] = HULL_HEIGHT;
 
-			if (TR_AllSolid()) {
+				TR_TraceHullFilter(pos, pos, mins, maxs, MASK_PLAYERSOLID, TraceEntityFilterPlayer);
+				setfloor = TR_AllSolid();
+			}
+
+			if (setfloor) {
 				int edict = plane.edict > ENTITY_NONE ? plane.edict : ENTITY_INVALID;
 				g_sessions[client].floor.InitVars(edict, pos[2] - DIST_EPSILON, {0.0, 0.0, 1.0});
 			}
