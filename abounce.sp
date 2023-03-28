@@ -211,6 +211,8 @@ char TEXT_LAUNCHER[LAUNCHER_COUNT+1][50];
 bool g_paneldraw = false;
 Session g_sessions[MAXPLAYERS+1];
 
+ConVar g_convar_pos;
+
 ConVar g_convar_live;
 Handle g_timer_live;
 
@@ -275,6 +277,8 @@ public void OnPluginStart()
 
 	RegConsoleCmd("sm_bounce", Command_Bounce);
 	RegConsoleCmd("sm_bcheck", Command_Bounce);
+
+	g_convar_pos = CreateConVar("sm_abounce_pos", "0", "Enables use of the player's current position");
 
 	g_convar_live = CreateConVar("sm_abounce_live", "0", "Enables live checking");
 	AutoExecConfig(true, "abounce");
@@ -419,7 +423,7 @@ void UpdateGround(int client, float start[3], float angle[3])
 		g_sessions[client].wall.InitVars(ENTITY_NONE, NaN, NaNVector);
 	}
 
-	if (ground != GROUND_NONE || g_sessions[client].floor.edict <= ENTITY_NONE) {
+	if (ground != GROUND_NONE) {
 		bool newfloor = false;
 
 		float pos[3];
@@ -435,8 +439,22 @@ void UpdateGround(int client, float start[3], float angle[3])
 			newfloor &= CompareVectors(plane.normal, {0.0, 0.0, 1.0});
 		}
 
-		if (newfloor)
+		if (newfloor) {
 			g_sessions[client].floor.InitVars(plane.edict, plane.dist, plane.normal);
+		}
+		else if (g_convar_pos.BoolValue) {
+			float mins[3];
+			float maxs[3];
+			mins[0] = -HULL_WIDTH/2.0 - DIST_EPSILON; mins[1] = -HULL_WIDTH/2.0 - DIST_EPSILON; mins[2] = 0.0;
+			maxs[0] =  HULL_WIDTH/2.0 + DIST_EPSILON; maxs[1] =  HULL_WIDTH/2.0 + DIST_EPSILON; maxs[2] = HULL_HEIGHT;
+
+			TR_TraceHullFilter(pos, pos, mins, maxs, MASK_PLAYERSOLID, TraceEntityFilterPlayer);
+
+			if (TR_AllSolid()) {
+				int edict = plane.edict > ENTITY_NONE ? plane.edict : ENTITY_INVALID;
+				g_sessions[client].floor.InitVars(edict, pos[2] - DIST_EPSILON, {0.0, 0.0, 1.0});
+			}
+		}
 	}
 
 	if (ground == GROUND_CHANGED)
@@ -528,22 +546,24 @@ void UpdateBounces(int client)
 			bounce.start = start;
 
 			if (start == BOUNCE_START_FALL) {
-				if (g_convar_live.BoolValue) {
-					Plane floor; floor.InitVars(g_sessions[client].floor.edict, g_sessions[client].floor.dist, g_sessions[client].floor.normal);
-
+				if (g_convar_live.BoolValue || g_sessions[client].floor.edict == ENTITY_INVALID) {
 					float pos[3]; GetEntPropVector(client, Prop_Data, "m_vecOrigin", pos);
 					float vel[3]; GetEntPropVector(client, Prop_Data, "m_vecVelocity", vel);
 					if (GetEntProp(client, Prop_Data, "m_fFlags") & FL_DUCKING)
 						pos[2] -= HULL_HEIGHT_DIFF;
 
-					g_sessions[client].floor.InitVars(ENTITY_INVALID, pos[2] - DIST_EPSILON, {0.0, 0.0, 1.0});
+					Plane floor; floor = g_sessions[client].floor;
+					if (g_convar_live.BoolValue)
+						g_sessions[client].floor.InitVars(ENTITY_INVALID, pos[2] - DIST_EPSILON, {0.0, 0.0, 1.0});
+
+					g_sessions[client].floor.edict = 0;					
 
 					BOUNCE_START[BOUNCE_START_FALL][1] = vel[2];
 
 					if (!g_sessions[client].grounded && CheckBounce(g_sessions[client], bounce))
 						g_sessions[client].bounces.PushArray(bounce);
 
-					g_sessions[client].floor.InitVars(floor.edict, floor.dist, floor.normal);
+					g_sessions[client].floor = floor;
 				}
             }
 			else if (CheckBounce(g_sessions[client], bounce))
@@ -1405,7 +1425,7 @@ bool IsBounceValid(const Session session, const Bounce bounce)
 		return false;
 
 	// Start surface needs to be known
-	if (bounce.start != BOUNCE_START_CEILING && session.floor.edict == ENTITY_NONE || bounce.start == BOUNCE_START_CEILING && session.ceiling.edict <= ENTITY_NONE)
+	if (bounce.start != BOUNCE_START_CEILING && session.floor.edict <= ENTITY_NONE || bounce.start == BOUNCE_START_CEILING && session.ceiling.edict <= ENTITY_NONE)
 		return false;
 
 	return true;
