@@ -180,6 +180,8 @@ enum struct Session
 
 	bool grounded;
 	float landtick;
+
+	float lastusetime;
 }
 
 enum struct Launcher
@@ -352,9 +354,12 @@ void ClearSession(int client)
 	g_sessions[client].ceiling.InitVars(ENTITY_NONE, NaN, NaNVector);
 	g_sessions[client].wall.InitVars(ENTITY_NONE, NaN, NaNVector);
 	g_sessions[client].bounces.Clear();
+
 	for (int i = 0; i < BOUNCE_TYPE_COUNT*BOUNCE_START_COUNT; i++)
 		g_sessions[client].indexer[i] = -1;
 	g_sessions[client].displayed = BOUNCE_TYPE_COUNT;
+
+	g_sessions[client].lastusetime = GetGameTime();
 }
 
 int GetLauncher(int client)
@@ -382,6 +387,11 @@ int GetLauncher(int client)
 
 Action Command_Bounce(int client, int args)
 {
+	if (GetGameTime() < g_sessions[client].lastusetime + 0.1) {
+		PrintToChat(client, "Wait 0.1 seconds between bcheck actions.");
+		return Plugin_Handled;
+	}
+
 	float ray_start[3];
 	float ray_angle[3];
 	GetClientEyePosition(client, ray_start);
@@ -392,6 +402,8 @@ Action Command_Bounce(int client, int args)
 	UpdateBounces(client);
 
 	ShowMenu(client);
+
+	g_sessions[client].lastusetime = GetGameTime();
 
 	return Plugin_Handled;
 }
@@ -861,6 +873,11 @@ public int PanelHandler(Menu menu, MenuAction action, int client, int choice)
 			return 0;
 		}
 
+		if (GetGameTime() < g_sessions[client].lastusetime + 0.1) {
+			PrintToChat(client, "Wait 0.1 seconds between bcheck actions.");
+			return 0;
+		}
+
 		if (choice <= 2) {
 			float ray_start[3];
 			float ray_angle[3];
@@ -890,6 +907,8 @@ public int PanelHandler(Menu menu, MenuAction action, int client, int choice)
 				g_sessions[client].displayed = BOUNCE_TYPE_COUNT;
 			}
 		}
+
+		g_sessions[client].lastusetime = GetGameTime();
 
 		ShowMenu(client);
 	}
