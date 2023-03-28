@@ -443,7 +443,7 @@ void UpdateGround(int client, float start[3], float angle[3])
 			g_sessions[client].floor.InitVars(plane.edict, plane.dist, plane.normal);
 		}
 		else if (g_convar_pos.BoolValue) {
-			bool setfloor = plane.edict > ENTITY_NONE;
+			bool setfloor = plane.edict > ENTITY_NONE ? plane.normal[2] >= GROUND_NORMAL_MIN : false;
 
 			if (!setfloor) {
 				float mins[3];
