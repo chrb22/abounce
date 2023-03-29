@@ -2,6 +2,7 @@
 #pragma newdecls required
 
 #include <sourcemod>
+#include <tf2_stocks>
 #include <sdktools>
 
 public Plugin myinfo =
@@ -368,7 +369,7 @@ void ClearSession(int client)
 
 int GetLauncher(int client)
 {
-	if (!IsPlayerAlive(client))
+	if (!IsPlayerAlive(client) || TF2_GetPlayerClass(client) != TFClass_Soldier)
 		return LAUNCHER_NONE;
 
 	int launcheredict = GetPlayerWeaponSlot(client, 0);
@@ -381,9 +382,9 @@ int GetLauncher(int client)
 		case INDEX_MANGLER:
 			launcher = LAUNCHER_MANGLER;
 		case INDEX_DIRECTHIT, INDEX_LIBERTY, INDEX_BEGGARS, INDEX_AIRSTRIKE:
-			launcher = -1;
+			launcher = LAUNCHER_NONE;
 		default:
-			launcher = LAUNCHER_STOCK;
+			launcher = LAUNCHER_NONE;
 	}
 
 	return launcher;
