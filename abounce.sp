@@ -373,6 +373,9 @@ int GetLauncher(int client)
 		return LAUNCHER_NONE;
 
 	int launcheredict = GetPlayerWeaponSlot(client, 0);
+	if (launcheredict == -1)
+		return LAUNCHER_NONE;
+
 	int launcherid = GetEntProp(launcheredict, Prop_Send, "m_iItemDefinitionIndex");
 
 	int launcher;
