@@ -555,9 +555,10 @@ void UpdateBounces(int client)
 			bounce.start = start;
 
 			if (start == BOUNCE_START_FALL) {
-				if (g_convar_live.BoolValue || g_sessions[client].floor.edict == ENTITY_INVALID) {
-					float pos[3]; GetEntPropVector(client, Prop_Data, "m_vecOrigin", pos);
-					float vel[3]; GetEntPropVector(client, Prop_Data, "m_vecVelocity", vel);
+				float pos[3]; GetEntPropVector(client, Prop_Data, "m_vecOrigin", pos);
+				float vel[3]; GetEntPropVector(client, Prop_Data, "m_vecVelocity", vel);
+
+				if (g_convar_live.BoolValue || g_sessions[client].floor.edict == ENTITY_INVALID && FloatAbs(vel[2] - 0.5*GRAVITY*TICK_INTERVAL) < EPSILON) {
 					if (GetEntProp(client, Prop_Data, "m_fFlags") & FL_DUCKING)
 						pos[2] -= HULL_HEIGHT_DIFF;
 
