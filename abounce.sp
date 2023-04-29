@@ -968,8 +968,8 @@ void FindPlane(int edict, const float start[3], const float angle[3], Plane plan
 		maxs[0] =  HULL_WIDTH/2.0; maxs[1] =  HULL_WIDTH/2.0; maxs[2] = 0.0;
 	}
 	else {
-		mins[0] = -0.00001/2.0; mins[1] = -0.00001/2.0; mins[2] = 0.0;
-		maxs[0] =  0.00001/2.0; maxs[1] =  0.00001/2.0; maxs[2] = 0.0;
+		mins[0] = -0.01/2.0; mins[1] = -0.01/2.0; mins[2] = 0.0;
+		maxs[0] =  0.01/2.0; maxs[1] =  0.01/2.0; maxs[2] = 0.01;
 	}
 
 	Handle trace_rough;
