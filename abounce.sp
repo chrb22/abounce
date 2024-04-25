@@ -10,7 +10,7 @@ public Plugin myinfo =
 	name = "Bounce Analyser",
 	author = "ILDPRUT",
 	description = "Shows possible bounce methods",
-	version = "1.0.9",
+	version = "1.0.10",
 }
 
 #define NaN										view_as<float>(0x7FFFFFFF)								// NaN
@@ -385,9 +385,9 @@ int GetLauncher(int client)
 		case INDEX_MANGLER:
 			launcher = LAUNCHER_MANGLER;
 		case INDEX_DIRECTHIT, INDEX_LIBERTY, INDEX_BEGGARS, INDEX_AIRSTRIKE:
-			launcher = LAUNCHER_NONE;
+			launcher = LAUNCHER_STOCK; // Treat as stock
 		default:
-			launcher = LAUNCHER_NONE;
+			launcher = LAUNCHER_STOCK; // Assume stock
 	}
 
 	return launcher;
@@ -630,9 +630,6 @@ void UpdateBounces(int client)
 
 	for (int i = 0; i < g_sessions[client].bounces.Length; i++) {
 		Bounce bounce; g_sessions[client].bounces.GetArray(i, bounce);
-
-		char bounces[50];
-		BounceString(g_sessions[client], bounce, bounces, sizeof(bounces));
 
 		if (bounce.start <= BOUNCE_START_CEILING) {
 			g_sessions[client].indexer[bounce.type*(BOUNCE_START_COUNT+1) + bounce.start] = i;
